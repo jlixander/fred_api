@@ -1,0 +1,116 @@
+---
+title: "Story2 - API data gathering"
+date: "2023-09-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(httr)
+library(jsonlite)
+library(tidyverse)
+api_key <- .rs.askForPassword("Please input FRED API Key:")
+```
+
+## Objective
+
+The Federal Reserve's mandate from Congress is to control inflation and to maintain low unemployment. These seem to be contradictory objectives.  
+  
+Has the FED been able to fulfill the mandate given to it by Congress?
+
+Remember, the FED raises rate after reviewing the CPI and other data and unemployment (layoffs) occur after company operating costs go up.
+
+## Gathering Data
+
+### Source 1: The Consumer Price Index (CPI)(Bureau of Labor Statistics)
+
+```{r, GET CPI Data}
+api_id = 'CPIAUCSL' #set data id to CPI
+url <- paste0('https://api.stlouisfed.org/fred/series/observations?series_id=', 
+                    api_id, 
+                    '&api_key=', 
+                    api_key,
+                    '&file_type=json') #construct api url
+
+#Make API call with API parameters
+res = GET(url,
+           query=list(observation_start = "1998-09-20",
+                      observation_end = "2023-09-19",
+                      frequency = 'm',
+                      sort_order = 'asc'))
+
+#retrieve data from API response
+data = fromJSON(rawToChar(res$content))
+
+#retrieve the time series from the data in dataframe type
+df_cpi <- data$observations |> 
+  rename("value_cpi" = "value") |>
+  select(-c(realtime_start, realtime_end))
+```
+
+### Source 2: The FED Funds Rate (FRED)(Federal Reserve Board)
+
+```{r, GET FED Funds RATE Data}
+api_id = 'FEDFUNDS' #set data id to effective federal funds rate
+url <- paste0('https://api.stlouisfed.org/fred/series/observations?series_id=', 
+                    api_id, 
+                    '&api_key=', 
+                    api_key,
+                    '&file_type=json') #construct api url
+
+#Make API call with API parameters
+res = GET(url,
+           query=list(observation_start = "1998-09-20",
+                      observation_end = "2023-09-19",
+                      frequency = 'm',
+                      sort_order = 'asc'))
+
+#retrieve data from API response
+data = fromJSON(rawToChar(res$content))
+
+#retrieve the time series from the data in dataframe type
+df_ffer <- data$observations |> 
+  rename("value_ffer" = "value") |>
+  select(-c(realtime_start, realtime_end))
+```
+
+
+### Source 3: Unemployment Rate (Bureau of Labor Statistics)
+
+```{r, GET Unemployment Rate Data}
+api_id = 'UNRATE' #set data id to effective federal funds rate
+url <- paste0('https://api.stlouisfed.org/fred/series/observations?series_id=', 
+                    api_id, 
+                    '&api_key=', 
+                    api_key,
+                    '&file_type=json') #construct api url
+
+#Make API call with API parameters
+res = GET(url,
+           query=list(observation_start = "1998-09-20",
+                      observation_end = "2023-09-19",
+                      frequency = 'm',
+                      sort_order = 'asc'))
+
+#retrieve data from API response
+data = fromJSON(rawToChar(res$content))
+
+#retrieve the time series from the data in dataframe type
+df_unemp <- data$observations |> 
+  rename("value_unemp" = "value") |>
+  select(-c(realtime_start, realtime_end))
+
+```
+
+
+### Data Wrangling
+```{r}
+df_list = list(df_cpi, df_ffer, df_unemp)
+df <- df_list |> 
+  reduce(inner_join, by='date')
+
+#export data to csv
+write.csv(df, "fred_data.csv", row.names=FALSE)
+
+head(df, 10)
+```
