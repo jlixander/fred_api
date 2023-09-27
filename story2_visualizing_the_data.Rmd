@@ -1,0 +1,126 @@
+---
+title: "Story2 - Visualizing the Data"
+date: "2023-09-26"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggthemes)
+theme_set(theme_bw())
+library(lubridate)
+library(patchwork)
+```
+
+### Objective
+  
+The Federal Reserve's mandate from Congress is to control inflation and to maintain low unemployment. These seem to be contradictory objectives. Has the FED been able to fulfill the mandate given to it by Congress?
+  
+Up to date, it seems like the FED has fulfilled the mandate from congress. Inflation peaked at 8.93% in April 2022. Moreover, unemployment rate has remained below 4%. It should be noted that more time will be needed to deduce if the rate hikes have successful in taming inflation **and** maintaining low unemployment. When compared to the Great Financial Crisis, it shows there is still a high chance of a lagged rise in unemployment. 
+  
+
+```{r include=FALSE}
+df <- read.csv('fred_data.csv')
+head(df,5)
+```
+
+
+```{r include=FALSE}
+df <- df |>
+  mutate(cpi_yoy = ((value_cpi-lag(value_cpi, n=12))/lag(value_cpi, n=12))*100)
+  
+df$date <- ymd(df$date)
+```
+
+##### Figure 1: CPI Over Time
+  
+Over the past three years there has been a global inflation battle. In the US, over the past 25 years, the CPI change year-over-year has hovered between 2 and 4 percent. However, the COVID19 pandemic incited rapid inflation. The peak reached 8.93% in April of 2022.
+  
+```{r echo=FALSE, message=FALSE}
+#create subset of covid 19 inflation impact
+inf_sec <- df[df$date >= "2020-04-01" & df$date <= "2022-06-30", ]
+
+#Get average
+
+ggplot(mapping = aes(x = date)) + 
+  geom_line(data= subset(df, !is.na(cpi_yoy)), aes(y = cpi_yoy), color = "black",linewidth=0.8) +
+  geom_line(data= inf_sec, aes(y = cpi_yoy), color = "red",linewidth=1.4) +
+  annotate("segment", x = as.Date("2020-01-01"), xend = as.Date("2022-04-01"), y = 7.8, yend = max(df$cpi_yoy, na.rm = TRUE), colour = "black") +
+  annotate("text", x = as.Date("2017-01-01"), y = 7.5, label = paste0("Peak of ", round(max(df$cpi_yoy, na.rm = TRUE),2),"% in April of 2022")) +
+  labs(title = "Consumer Price Index: % Change Year-over-Year",
+        y= "% change",
+        x= 'Date')
+```
+
+##### Figure 2: CPI Vs FED Effective Funds Rate
+  
+The Federal Effective Funds Rate has played a big role to control run-away inflation. Within a month of raising rates, CPI percent change YoY began to decline.  
+  
+```{r echo=FALSE}
+#create subset of recent fed rate raises
+fed_sec <- df[df$date >= "2022-03-01" & df$date <= "2023-08-30", ]
+
+#fed plot
+p1 <- ggplot(mapping = aes(x = date)) + 
+  geom_line(data= df, aes(y = value_ffer), color = "black",linewidth=0.8) +
+  geom_line(data= fed_sec, aes(y = value_ffer), color = "red",linewidth=1.4)+
+  annotate("segment", x = as.Date("2021-03-01"), xend = as.Date("2022-03-01"), y = 3.5, yend = 0.2, colour = "black") +
+  annotate("text", x = as.Date("2018-01-01"), y = 4.5, label = paste0("FED began raising rates\n in March of 2022")) +
+  labs(title = "CPI % Change Year-over-Year Vs. Fed Funds Rate",
+        y= "FED % Rate",
+        x= 'Date')
+
+#cpi plot
+p2 <- ggplot(mapping = aes(x = date)) + 
+  geom_line(data= subset(df, !is.na(cpi_yoy)), aes(y = cpi_yoy), color = "black",linewidth=0.8)+
+  geom_line(data= fed_sec, aes(y = cpi_yoy), color = "red",linewidth=1.4) +
+  annotate("segment", x = as.Date("2020-01-01"), xend = as.Date("2022-04-01"), y = 7.8, yend = max(df$cpi_yoy, na.rm = TRUE), colour = "black") +
+  annotate("text", x = as.Date("2017-01-01"), y = 7.15, label = paste0("Peak of ", round(max(df$cpi_yoy, na.rm = TRUE),2),"% in April of 2022"))+
+  labs(y= "CPI % change",
+      x= 'Date')
+
+
+p1 / p2
+```
+
+
+##### Figure 3: FED Rates Vs. Unemployment Rate
+  
+Although FED rates have been raised to 5.33%, unemployment rate has remained under 4%.However, during the Great Financial Crisis, unemployment rates skyrocketed months after the FED paused rate hikes leading to the conclusion of a possible lag. 
+```{r echo=FALSE}
+#fed plot
+p3 <- ggplot(mapping = aes(x = date)) +
+  geom_line(data= df, aes(y = value_ffer), color = "black",linewidth=0.8) +
+  geom_line(data= fed_sec, aes(y = value_ffer), color = "red",linewidth=1.4)+
+  annotate("segment", x = as.Date("2021-03-01"), xend = as.Date("2022-03-01"), y = 3.5, yend = 0.2, colour = "black") +
+  annotate("text", x = as.Date("2018-01-01"), y = 4.5, label = paste0("FED began raising rates\n in March of 2022")) +
+  labs(title = "Fed Funds Rate Vs. Unemployment Rate",
+        y= "FED % Rate",
+        x= 'Date')
+
+#unemployment plot
+p4 <- ggplot(mapping = aes(x = date)) +
+  geom_line(data= df, aes(y = value_unemp), color = "black",linewidth=0.8)+
+  geom_line(data= fed_sec, aes(y = value_unemp), color = "red",linewidth=1.4) +
+  labs(y= "Unemployment % Rate",
+      x= 'Date')
+
+rect <- data.frame(xmin=as.Date("2004-07-01"), xmax=as.Date("2007-08-01"), ymin=-Inf, ymax=Inf)
+p5 <- p3 + geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              color="grey20",
+              alpha=0.1,
+              inherit.aes = FALSE)
+
+rect <- data.frame(xmin=as.Date("2007-04-01"), xmax=as.Date("2009-11-01"), ymin=-Inf, ymax=Inf)
+p6 <- p4 + geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              color="grey20",
+              alpha=0.1,
+              inherit.aes = FALSE)
+
+
+
+p5 / p6
+```
